@@ -387,9 +387,7 @@ int gerarAlimento(SDL_Renderer *renderer,Objeto *alimento){
  	printf("cobrax = (%d , %d) cobray = (%d , %d)\n",cobra->inicio->reg.rect.x,CobraLar,cobra->inicio->reg.rect.y,CobraAlt);
  	printf("x = (%d , %d) y = (%d , %d)\n",alimento->reg.rect.x,AlimMaxLar,alimento->reg.rect.y,AlimMaxAlt);
     if((cobra->inicio->reg.rect.x >= alimento->reg.rect.x) && (CobraLar <= AlimMaxLar)){
-    	//printf("UM JA FOI!!!!!!!!!!!!!!!!!!!!!\n");
        if((cobra->inicio->reg.rect.y == alimento->reg.rect.y) && (CobraAlt <= AlimMaxAlt)){
-    	//printf("OIIIIIIIIIIOIIIIIIII\n");
     	aumentaCobra(cobra);
     	printf("contador: %d\n",contTamCobra(cobra));
     	inicializaAlimento(alimento);
