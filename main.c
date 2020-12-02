@@ -6,12 +6,12 @@
 
 #define MOV 0.3
 #define tamCobra 10
-#define alturatela 720
-#define larguratela 1280
+#define alturatela 600
+#define larguratela 1000
 int contx = 0;
 int conty = 0;
 int tamx = 0,tamy = 0;
-//int cima = -2 ,baixo = 2,dir = 1,esq = -1;
+int pont = 0;
 time_t t;
 typedef struct{
 	SDL_Rect rect;
@@ -19,7 +19,6 @@ typedef struct{
 }Registro;
 typedef struct aux{
    Registro reg;
-   //int dir; //direcao esq = -1 dir = 1 cima = -2 baixo = 2 neutro = 0
    struct  aux *prox;	
    }Elemento;
 typedef struct{
@@ -32,7 +31,8 @@ typedef struct{
 }Fila;
 //funções de eventos do jogo
 void call_render(SDL_Renderer*, Registro*);
-int call_events(Fila*);
+int call_events(Fila*,SDL_Rect*);
+void placar(SDL_Renderer*);
 
 //funções da cobra
 Fila* criaCobra();
@@ -43,24 +43,48 @@ void mostraCobra(Fila*);
 int insereNaCobra(Fila*,Registro);
 void exibeCobra(SDL_Renderer *renderer,Fila* cobra);
 void atualizaCobra(Fila*,SDL_Rect);
+int colisaoCobra(Fila *cobra);
+void addTamCobra(Fila *cobra);
 //void atCobra(Fila*,SDL_Rect);
-void limiteTela(Elemento*);
+void limiteTela(Elemento*,SDL_Rect*);
 int verLimiteTela(Elemento*);
 int contTamCobra(Fila*);
 //Funções do alimento
 Objeto* criaAlimento();
 void inicializaAlimento(Objeto*);
-int gerarAlimento(SDL_Renderer*,Objeto*);
+int gerarAlimento(SDL_Renderer*,Objeto*,SDL_Rect*);
 void liberaAlimento(Objeto*);
 int colisaoAlimento(Objeto*,Fila*);
+//timer
+unsigned int timer(void){
+	unsigned int lastTime = 0, currentTime;
+		currentTime = SDL_GetTicks();
+
+		if(currentTime > lastTime + 1000) {
+
+			lastTime = currentTime;
+		}
+		return lastTime/1000;
+}
+SDL_Rect criaRect(int x,int y,int w,int h){
+  SDL_Rect rect;
+  rect.x = x;
+  rect.y = y;
+  rect.w = w;
+  rect.h = h;
+  return rect;	
+}
 
 int main(int argc, char **argv){   
 	int flag;
- //Posicao inicial da cobra
+	SDL_Rect telaJogo = criaRect(larguratela * 0.05,alturatela * 0.1,larguratela * 0.9,alturatela * 0.8);
+ //Posicao inicial da cobra e criação do alimento
 	Fila *cobra = criaCobra();
 	inicializaCobra(cobra);
 	Objeto *alimento = criaAlimento();
 	inicializaAlimento(alimento);
+ //----------------------------------
+ //Criação da janela
 	SDL_Window *window;
 	SDL_Renderer *renderer;
 	SDL_Init(SDL_INIT_EVERYTHING);
@@ -70,33 +94,63 @@ int main(int argc, char **argv){
 		SDL_Quit();
 		exit(1);
 	}
-
 	renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED);
-
 	if(!renderer){
 		SDL_Log("Erro ao cirar renderizacao! %s", SDL_GetError());
 		SDL_Quit();
 		exit(1);
 	}
+//------------------------------
+//FONTE----------------------------------------------
+	  
+       char pb[16];
+      
+		TTF_Init();
+    	TTF_Font *fonte_placar; 
+    	fonte_placar = TTF_OpenFont("FreeSans.ttf", 15);
+    	if (fonte_placar == NULL) {
+          printf("Erro ao inicializar fonte: %s", TTF_GetError());
+        exit(EXIT_FAILURE);
+        }
+
+	    SDL_Color White = {255, 255, 255};
+        SDL_Surface* num_pont;
+	    SDL_Rect num_rect = criaRect(larguratela * 0.25,10,50,40);
+	     SDL_Surface* txt_pont;
+	     SDL_Rect pont_rect = criaRect(larguratela * 0.1,10,100,40);
+//FONTE----------------------------------------------
 
 	SDL_Event event;
-    aumentaCobra(cobra);
-    aumentaCobra(cobra);
-    mostraCobra(cobra);
     printf("contador: %d\n",contTamCobra(cobra));
 	flag = 0;
-   
+    int sec = 0;
 	 while(!flag){
-	 	SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
-	    SDL_RenderClear(renderer);	
-	    gerarAlimento(renderer, alimento);
-		flag = call_events(cobra);
+	 	sec = timer();
+	    SDL_RenderClear(renderer);
+	    SDL_SetRenderDrawColor(renderer, 0,0,0,100);
+        SDL_RenderFillRect(renderer,&telaJogo);
+//Pontuacao------------------------------------------
+        txt_pont = TTF_RenderText_Solid(fonte_placar,"placar", White); 
+        SDL_Texture* pontuacao = SDL_CreateTextureFromSurface(renderer, txt_pont); 
+        SDL_RenderCopy(renderer,pontuacao, NULL, &pont_rect);
+	    sprintf(pb, "%d", pont);
+	    num_pont = TTF_RenderText_Solid(fonte_placar, pb , White); 
+        SDL_Texture* num = SDL_CreateTextureFromSurface(renderer, num_pont); 
+        SDL_RenderCopy(renderer,num, NULL, &num_rect);
+//Pontuacao--------------------------------------------
+	    gerarAlimento(renderer, alimento,&telaJogo);
+		flag = call_events(cobra,&telaJogo);
 		exibeCobra(renderer,cobra);
 		colisaoAlimento(alimento,cobra);
-		//call_render(renderer,&cobra->inicio->reg);
-		
+
+		if(colisaoCobra(cobra)){
+           if (SDL_ShowSimpleMessageBox(0, "Perdeu o jogo", "A cobra se comeu", NULL) < 0 )
+              SDL_Log("%s", SDL_GetError());
+		}
+		SDL_SetRenderDrawColor(renderer, 0, 100, 255, 255);	
 		SDL_Delay(100);
 		SDL_RenderPresent(renderer);		
+	
 	}
 	
 	liberaCobra(cobra);
@@ -108,17 +162,12 @@ int main(int argc, char **argv){
 	return 0;
 }
 
-void call_render(SDL_Renderer *renderer, Registro *reg){
-
-	//SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
-	//SDL_RenderClear(renderer);
-    SDL_SetRenderDrawColor(renderer, 0, reg->cor[0], reg->cor[1],reg->cor[2]);
+void call_render(SDL_Renderer *renderer, Registro *reg){	
+    SDL_SetRenderDrawColor(renderer, reg->cor[0],reg->cor[1],reg->cor[2],255);
     SDL_RenderFillRect(renderer,&reg->rect);
-	
-	
 }
 
-int call_events(Fila *cobra){
+int call_events(Fila *cobra,SDL_Rect *telaJogo){
 	int flag = 0;
 	
 	SDL_Event event;
@@ -132,42 +181,30 @@ int call_events(Fila *cobra){
 		}
 	}
     SDL_Rect *rect = &cobra->inicio->reg.rect;
-    SDL_Rect rant = cobra->inicio->reg.rect;
-    if(contx == 0 && conty == 0){
-      SDL_Log("Começe o jogo:\n");
-    }else{
-	if(state[SDL_SCANCODE_LEFT] && (contx < 0 || contx == 0)){		
+    SDL_Rect rant = cobra->inicio->reg.rect;     
+	if((state[SDL_SCANCODE_LEFT] || state[SDL_SCANCODE_A]) && (contx < 0 || contx == 0) && (contx != 0 || conty != 0)){		
    		contx = -tamCobra;
    		conty = 0;
 
 	}
-    }
-	if(state[SDL_SCANCODE_RIGHT] && (contx > 0 || contx == 0)){
+	else if((state[SDL_SCANCODE_RIGHT] || state[SDL_SCANCODE_D]) && (contx > 0 || contx == 0)){
    	  contx = tamCobra;
    	  conty = 0;
    		
 	}
-
-	else if(state[SDL_SCANCODE_UP] && (conty < 0 || conty == 0)){
+	else if((state[SDL_SCANCODE_UP] || state[SDL_SCANCODE_W]) && (conty < 0 || conty == 0)){
    		conty = -tamCobra;
    		contx = 0;   	
 	}
-	else if(state[SDL_SCANCODE_DOWN] && (contx > 0 || conty == 0)){
+	else if((state[SDL_SCANCODE_DOWN] || state[SDL_SCANCODE_S]) && (contx > 0 || conty == 0)){
    		conty = tamCobra;
    		contx = 0;
-	}
-	 //atualizaCobra(cobra);
-	 //limiteTela(cobra->inicio);
-     
-     
+	}   
 	  rect->x += contx;
 	  rect->y += conty;
-	  limiteTela(cobra->inicio);
+	  limiteTela(cobra->inicio,telaJogo);
 	  if(contx != 0 || conty != 0)
       atualizaCobra(cobra,rant);
-    //SDL_Log("%d %d %d",model->x + model->largura,model->y + model->altura,larguratela);
-    
-
 	return flag;
 }
 // Funções da Cobra cobra
@@ -191,25 +228,24 @@ void inicializaCobra(Fila *cobra){
 	cabeca->reg.cor[2] = 1;
 	cobra->inicio = cabeca;
 	cobra->fim = cabeca;
+	addTamCobra(cobra);
+	addTamCobra(cobra);
 	
+}
+void addTamCobra(Fila *cobra){
+  Registro reg;
+	reg = cobra->fim->reg;
+	reg.rect.x -= tamCobra;
+	reg.cor[0] = 255;
+	reg.cor[1] = 0;
+	reg.cor[2] = 255;
+	insereNaCobra(cobra,reg);
 }
 void aumentaCobra(Fila *cobra){
 	Registro reg;
-	//printf("%d\n",cobra->fim->dir);
 	reg = cobra->fim->reg;
-	/*if(cobra->fim->dir == cima)
-		reg.rect.y += reg.rect.h;
-	else if(cobra->fim->dir == baixo)
-		reg.rect.y -= reg.rect.h;
-	else if(cobra->fim->dir == esq)
-		reg.rect.x += reg.rect.w;
-	else if(cobra->fim->dir == dir)
-		reg.rect.x -= reg.rect.w;
-	else
-		reg.rect.x -= reg.rect.w;*/
-	
 	reg.cor[0] = 255;
-	reg.cor[1] = 255;
+	reg.cor[1] = 0;
 	reg.cor[2] = 255;
 	insereNaCobra(cobra,reg);
 	
@@ -232,39 +268,21 @@ int contTamCobra(Fila *cobra){
    }
   return cont;
 }
-void limiteTela(Elemento *e){
-   if((e->reg.rect.x + e->reg.rect.w) >= larguratela){
-     e->reg.rect.x = 1;
+void limiteTela(Elemento *e,SDL_Rect *telaJogo){
+	//printf("(%d %d) - (%d %d)\n",e->reg.rect.x, e->reg.rect.y,telaJogo->x,telaJogo->y);
+   if((e->reg.rect.x + e->reg.rect.w) > (telaJogo->w + telaJogo->x)){
+     e->reg.rect.x = telaJogo->x;
    }
-    if(e->reg.rect.x <= 0){
-      e->reg.rect.x = larguratela - e->reg.rect.w;
+    if(e->reg.rect.x < telaJogo->x){
+      e->reg.rect.x = telaJogo->w + telaJogo->x;
     }
-    if((e->reg.rect.y + e->reg.rect.h) >= alturatela){
-      e->reg.rect.y = 1;
+    if((e->reg.rect.y + e->reg.rect.h) > (telaJogo->h + telaJogo->y)){
+      e->reg.rect.y = telaJogo->y;
     }
-    if(e->reg.rect.y <= 0){
-      e->reg.rect.y = alturatela - e->reg.rect.h;
+    if(e->reg.rect.y < telaJogo->y){
+      e->reg.rect.y = telaJogo->h + telaJogo->y;
     }
 }
-int verLimiteTela(Elemento *e){
-	if(e->prox != NULL)
-	//printf("%d\n",e->prox->dir);
-   if((e->reg.rect.x + e->reg.rect.w) >= larguratela){
-     return 1;
-   }
-    if(e->reg.rect.x <= 0){
-      return 1;
-    }
-    if((e->reg.rect.y + e->reg.rect.h) >= alturatela){
-      return 1;
-    }
-    if(e->reg.rect.y <= 0){
-      return 1;
-    }
-
-  return 0;
-}
-
 void atualizaCobra(Fila *cobra,SDL_Rect aux){
 	SDL_Rect ant;
 	Elemento *atual = cobra->inicio->prox;
@@ -277,69 +295,25 @@ void atualizaCobra(Fila *cobra,SDL_Rect aux){
 		    ant = aux;
 	}
 }
-/*
-void atCobra(Fila *cobra){
-	Elemento *ant = cobra->inicio;
-	Elemento *atual = ant->prox;
-	//int limite = verLimiteTela(ant);
-	//end->reg.rect.x = aux->reg.rect.x + tamx;
-	//end->reg.rect.y = aux->reg.rect.y + tamy; 
-	while(atual != NULL){
-		    
-		    
-		    if(atual->reg.rect.x == ant->reg.rect.x){
-		    	if((ant->reg.rect.y - atual->reg.rect.y) > 0){
-		          atual->reg.rect.y += tamCobra;
-		          atual->dir = baixo;
-		        }
-		        else if((ant->reg.rect.y - atual->reg.rect.y) < 0){
-		          atual->reg.rect.y -= tamCobra;		
-		          atual->dir = cima;
-		        }
-		    }
-            else if(atual->reg.rect.y == ant->reg.rect.y){
-		    	if((ant->reg.rect.x - atual->reg.rect.x) > 0){
-		          atual->reg.rect.x += tamCobra;
-		          atual->dir = dir;
-		        }
-		        else if((ant->reg.rect.x - atual->reg.rect.x) < 0){
-		          atual->reg.rect.x -= tamCobra;		
-		          atual->dir = esq;
-		        }
-		    }
-		    else if(((atual->reg.rect.y != ant->reg.rect.y) && (atual->reg.rect.x != ant->reg.rect.x))){
-		    	if(atual->dir == esq)
-		    	  atual->reg.rect.x -= tamCobra;
-		    	else if(atual->dir == dir)
-                  atual->reg.rect.x += tamCobra;
-		    	else if(atual->dir == cima)
-                  atual->reg.rect.y -= tamCobra;
-		    	else
-		    	  atual->reg.rect.y += tamCobra;
-		    }
-		    
-		    ant = atual;
-		    atual = atual->prox;	   
+int colisaoCobra(Fila *cobra){
+	SDL_Rect cabeca;
+	Elemento *atual = cobra->inicio->prox;
+	cabeca = cobra->inicio->reg.rect;
+	while(atual->prox != NULL){
+       if((cabeca.x >= atual->reg.rect.x) && (cabeca.x + cabeca.w <= atual->reg.rect.x + atual->reg.rect.w)){
+         if((cabeca.y == atual->reg.rect.y) && (cabeca.y + cabeca.h <= atual->reg.rect.y + atual->reg.rect.h)){
+     	    return 1;
+     	 }
+        }
+       atual = atual->prox;	   
 	}
-}*/
+	return 0;
+}
 void exibeCobra(SDL_Renderer *renderer,Fila* cobra){
 	Elemento *end = cobra->inicio;
 	Elemento *aux;
 	while(end != NULL){
 		call_render(renderer,&end->reg);
-	    end = end->prox;
-	}
-}
-void mostraCobra(Fila* cobra){
-	Elemento *end = cobra->inicio;
-	Elemento *aux;
-	while(end != NULL){
-		//printf("%d %d\n",end->reg.rect.x,end->reg.rect.y);
-		if(end->prox != NULL){
-			aux = end;
-			end->reg.rect.x = aux->reg.rect.x;
-			end->reg.rect.y = aux->reg.rect.y;
-	    }
 	    end = end->prox;
 	}
 }
@@ -365,35 +339,32 @@ void inicializaAlimento(Objeto *alimento){
 void liberaAlimento(Objeto *alimento){
    free(alimento);
 }
-int gerarAlimento(SDL_Renderer *renderer,Objeto *alimento){
+int gerarAlimento(SDL_Renderer *renderer,Objeto *alimento,SDL_Rect *telaJogo){
     if(alimento->ativo == 0){
     srand((unsigned) time(&t));
-    int x = (((rand() % (larguratela / tamCobra))) * tamCobra);
-    int y = (((rand() % (alturatela / tamCobra)))* tamCobra);
+    int x = (((rand() % ((telaJogo->w) / tamCobra))) * tamCobra) + telaJogo->x;
+    int y = (((rand() % ((telaJogo->h)/ tamCobra))) * tamCobra) + telaJogo->y;
     printf("%d %d\n",x,y);
     alimento->reg.rect.x = x;
     alimento->reg.rect.y = y;
     alimento->ativo = 1;
     }
         call_render(renderer,&alimento->reg);
-        //SDL_SetRenderDrawColor(renderer, 0, 255, 0, 255);
-        //SDL_RenderFillRect(renderer, &alimento->a);	
-	  
  }
 
-   int colisaoAlimento(Objeto *alimento,Fila *cobra){
+  int colisaoAlimento(Objeto *alimento,Fila *cobra){
  	int CobraLar = cobra->inicio->reg.rect.x + (cobra->inicio->reg.rect.w), CobraAlt = cobra->inicio->reg.rect.y + (cobra->inicio->reg.rect.h);
  	int AlimMaxLar = alimento->reg.rect.x + alimento->reg.rect.w, AlimMaxAlt = alimento->reg.rect.y + alimento->reg.rect.h;
- 	printf("cobrax = (%d , %d) cobray = (%d , %d)\n",cobra->inicio->reg.rect.x,CobraLar,cobra->inicio->reg.rect.y,CobraAlt);
- 	printf("x = (%d , %d) y = (%d , %d)\n",alimento->reg.rect.x,AlimMaxLar,alimento->reg.rect.y,AlimMaxAlt);
     if((cobra->inicio->reg.rect.x >= alimento->reg.rect.x) && (CobraLar <= AlimMaxLar)){
        if((cobra->inicio->reg.rect.y == alimento->reg.rect.y) && (CobraAlt <= AlimMaxAlt)){
     	aumentaCobra(cobra);
-    	printf("contador: %d\n",contTamCobra(cobra));
+    	pont++;
     	inicializaAlimento(alimento);
         return 1;
        }
     }
    return 0;
  }
+ 
+ 
 
