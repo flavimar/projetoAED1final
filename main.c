@@ -1,10 +1,11 @@
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_ttf.h>
+#include <SDL2/SDL_image.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
 
-#define MOV 0.3
+// Vaciaveis globais do Jogo----------------
 #define tamCobra 10
 #define alturatela 600
 #define larguratela 1000
@@ -13,6 +14,15 @@ int conty = 0;
 int tamx = 0,tamy = 0;
 int pont = 0;
 time_t t;
+SDL_Texture *fundo;
+SDL_Texture *btn_comecar;
+SDL_Texture *btn_comecar_ver;
+SDL_Texture *btn_comecar_click;
+SDL_Texture *btn_sair;
+SDL_Texture *btn_sair_ver;
+SDL_Texture *btn_sair_click;
+// Vaciaveis globais do Jogo----------------
+//Structs------------------
 typedef struct{
 	SDL_Rect rect;
 	int cor[3];
@@ -29,11 +39,22 @@ typedef struct{
 	Elemento *inicio;
 	Elemento *fim;
 }Fila;
+typedef struct 
+{
+	int x;
+	int y;
+}Mouse;
+Mouse m;
+
+//Structs------------------
 //funções de eventos do jogo
 void call_render(SDL_Renderer*, Registro*);
 int call_events(Fila*,SDL_Rect*);
 void placar(SDL_Renderer*);
-
+SDL_Rect criaRect(int x,int y,int w,int h);
+int menu(SDL_Renderer *renderer,SDL_Rect rbtn_comecar,SDL_Rect rbtn_sair,int flag);
+int eventoMenu(SDL_Rect rbtn_comecar,SDL_Rect rbtn_sair);
+void liberagrafico();
 //funções da cobra
 Fila* criaCobra();
 void inicializaCobra(Fila*);
@@ -66,18 +87,20 @@ unsigned int timer(void){
 		}
 		return lastTime/1000;
 }
-SDL_Rect criaRect(int x,int y,int w,int h){
-  SDL_Rect rect;
-  rect.x = x;
-  rect.y = y;
-  rect.w = w;
-  rect.h = h;
-  return rect;	
+void mostraPlacar(SDL_Renderer* renderer, SDL_Texture* pontuacao, SDL_Rect* pont_rect,SDL_Surface* num_pont,SDL_Rect* num_rect,SDL_Texture* num,TTF_Font* fonte_placar,SDL_Color white){
+	    SDL_RenderCopy(renderer,pontuacao, NULL, pont_rect);
+	    char pb[16];
+	    sprintf(pb, "%d", pont);
+	    num_pont = TTF_RenderText_Solid(fonte_placar, pb , white); 
+        num = SDL_CreateTextureFromSurface(renderer, num_pont); 
+        SDL_RenderCopy(renderer,num, NULL, num_rect);
 }
-
 int main(int argc, char **argv){   
 	int flag;
 	SDL_Rect telaJogo = criaRect(larguratela * 0.05,alturatela * 0.1,larguratela * 0.9,alturatela * 0.8);
+	SDL_Rect rbtn_comecar,rbtn_sair;
+    rbtn_comecar = criaRect(larguratela/4,200,500,50);
+    rbtn_sair = criaRect(larguratela/4,300,500,50);
  //Posicao inicial da cobra e criação do alimento
 	Fila *cobra = criaCobra();
 	inicializaCobra(cobra);
@@ -101,10 +124,8 @@ int main(int argc, char **argv){
 		exit(1);
 	}
 //------------------------------
-//FONTE----------------------------------------------
-	  
-       char pb[16];
-      
+//FONTE----------------------------------------------  
+       
 		TTF_Init();
     	TTF_Font *fonte_placar; 
     	fonte_placar = TTF_OpenFont("FreeSans.ttf", 15);
@@ -112,31 +133,45 @@ int main(int argc, char **argv){
           printf("Erro ao inicializar fonte: %s", TTF_GetError());
         exit(EXIT_FAILURE);
         }
+        TTF_Font *fonte; 
+    	fonte = TTF_OpenFont("FreeSans.ttf", 24);
+    	if (fonte == NULL) {
+          printf("Erro ao inicializar fonte: %s", TTF_GetError());
+        exit(EXIT_FAILURE);
+        }
+	    SDL_Color white = {255, 255, 255};
+        
+        SDL_Surface* txt_pont;
+        txt_pont = TTF_RenderText_Solid(fonte_placar,"placar", white); 
+	    SDL_Rect pont_rect = criaRect(larguratela * 0.1,10,100,40);
+        SDL_Texture* pontuacao = SDL_CreateTextureFromSurface(renderer, txt_pont); 
 
-	    SDL_Color White = {255, 255, 255};
         SDL_Surface* num_pont;
 	    SDL_Rect num_rect = criaRect(larguratela * 0.25,10,50,40);
-	     SDL_Surface* txt_pont;
-	     SDL_Rect pont_rect = criaRect(larguratela * 0.1,10,100,40);
+	    SDL_Texture* num;
+	    
+        
+        SDL_Surface* texto = TTF_RenderText_Solid(fonte, "SnakeC", white); 
+        SDL_Texture* titulo = SDL_CreateTextureFromSurface(renderer, texto); 
+	    SDL_Rect titulo_rect = criaRect(larguratela/4,50,500,100);
 //FONTE----------------------------------------------
-
 	SDL_Event event;
-    printf("contador: %d\n",contTamCobra(cobra));
-	flag = 0;
+	flag = 1;
+	int fechamenu = 0;
     int sec = 0;
-	 while(!flag){
+	 while(flag){
 	 	sec = timer();
 	    SDL_RenderClear(renderer);
+		
+	    if(flag == 3){
+	      liberagrafico();
+		  fechamenu = 1;
+		}
+		if(fechamenu){
 	    SDL_SetRenderDrawColor(renderer, 0,0,0,100);
         SDL_RenderFillRect(renderer,&telaJogo);
 //Pontuacao------------------------------------------
-        txt_pont = TTF_RenderText_Solid(fonte_placar,"placar", White); 
-        SDL_Texture* pontuacao = SDL_CreateTextureFromSurface(renderer, txt_pont); 
-        SDL_RenderCopy(renderer,pontuacao, NULL, &pont_rect);
-	    sprintf(pb, "%d", pont);
-	    num_pont = TTF_RenderText_Solid(fonte_placar, pb , White); 
-        SDL_Texture* num = SDL_CreateTextureFromSurface(renderer, num_pont); 
-        SDL_RenderCopy(renderer,num, NULL, &num_rect);
+        mostraPlacar(renderer,pontuacao,&pont_rect,num_pont,&num_rect,num,fonte_placar,white);   
 //Pontuacao--------------------------------------------
 	    gerarAlimento(renderer, alimento,&telaJogo);
 		flag = call_events(cobra,&telaJogo);
@@ -147,12 +182,24 @@ int main(int argc, char **argv){
            if (SDL_ShowSimpleMessageBox(0, "Perdeu o jogo", "A cobra se comeu", NULL) < 0 )
               SDL_Log("%s", SDL_GetError());
 		}
+	   }
+	   if(!fechamenu){
+		flag = eventoMenu(rbtn_comecar,rbtn_sair);
+		menu(renderer,rbtn_comecar,rbtn_sair,flag);
+	    SDL_RenderCopy(renderer, titulo, NULL, &titulo_rect);
+	    }
 		SDL_SetRenderDrawColor(renderer, 0, 100, 255, 255);	
 		SDL_Delay(100);
 		SDL_RenderPresent(renderer);		
 	
 	}
-	
+	TTF_Quit();
+	SDL_FreeSurface(texto);
+    SDL_DestroyTexture(titulo);
+    SDL_FreeSurface(txt_pont);
+    SDL_DestroyTexture(pontuacao);
+    SDL_FreeSurface(num_pont);
+    SDL_DestroyTexture(num);
 	liberaCobra(cobra);
     liberaAlimento(alimento);
 	SDL_DestroyRenderer(renderer);
@@ -161,14 +208,87 @@ int main(int argc, char **argv){
 
 	return 0;
 }
-
+int menu(SDL_Renderer *renderer,SDL_Rect rbtn_comecar,SDL_Rect rbtn_sair,int flag){
+   
+   fundo = IMG_LoadTexture(renderer,"graficoSnakeC/fundocobra.jpg");
+   btn_comecar = IMG_LoadTexture(renderer,"graficoSnakeC/btn/btn.png");
+   btn_comecar_ver = IMG_LoadTexture(renderer,"graficoSnakeC/btn/btn_ver.png");
+   btn_comecar_click = IMG_LoadTexture(renderer,"graficoSnakeC/btn/btn_ver_click.png");
+   btn_sair = IMG_LoadTexture(renderer,"graficoSnakeC/btn/btn_sair.png");
+   btn_sair_ver = IMG_LoadTexture(renderer,"graficoSnakeC/btn/btn_sair_ver.png");
+   btn_sair_click = IMG_LoadTexture(renderer,"graficoSnakeC/btn/btn_sair_ver_click.png");
+   SDL_RenderCopy(renderer,fundo,NULL,NULL);
+   if(flag == 2)
+   SDL_RenderCopy(renderer,btn_comecar_ver,NULL,&rbtn_comecar);
+   else if(flag == 3)
+   SDL_RenderCopy(renderer,btn_comecar_click,NULL,&rbtn_comecar);
+   else
+   SDL_RenderCopy(renderer,btn_comecar,NULL,&rbtn_comecar);
+   if(flag == 4)
+   SDL_RenderCopy(renderer,btn_sair_ver,NULL,&rbtn_sair);
+   else if(flag == 5)
+   SDL_RenderCopy(renderer,btn_sair_click,NULL,&rbtn_sair);
+   else
+   SDL_RenderCopy(renderer,btn_sair,NULL,&rbtn_sair);
+   return 1;
+}
+void liberagrafico(){
+	SDL_DestroyTexture(fundo);
+    SDL_DestroyTexture(btn_comecar);
+    SDL_DestroyTexture(btn_comecar_ver);
+    SDL_DestroyTexture(btn_comecar_click);
+    SDL_DestroyTexture(btn_sair);
+    SDL_DestroyTexture(btn_sair_ver);
+    SDL_DestroyTexture(btn_sair_click);
+} 
+SDL_Rect criaRect(int x,int y,int w,int h){
+  SDL_Rect rect;
+  rect.x = x;
+  rect.y = y;
+  rect.w = w;
+  rect.h = h;
+  return rect;	
+}
 void call_render(SDL_Renderer *renderer, Registro *reg){	
     SDL_SetRenderDrawColor(renderer, reg->cor[0],reg->cor[1],reg->cor[2],255);
     SDL_RenderFillRect(renderer,&reg->rect);
 }
+int eventoMenu(SDL_Rect rbtn_comecar,SDL_Rect rbtn_sair){
+	int flag = 1;
+	
+	SDL_Event event;
+	const Uint8 *state = SDL_GetKeyboardState(NULL);
+	//printf("%ld ",sizeof(SDL_GetKeyboardState));
+    if(((m.x >= rbtn_comecar.x) && (m.x <= rbtn_comecar.x + rbtn_comecar.w)) && ((m.y >= rbtn_comecar.y) && (m.y <= rbtn_comecar.y + rbtn_comecar.h))){
+		  	 flag = 2; 
+	}
+	if(((m.x >= rbtn_sair.x) && (m.x <= rbtn_sair.x + rbtn_sair.w)) && ((m.y >= rbtn_sair.y) && (m.y <= rbtn_sair.y + rbtn_sair.h))){
+		  	 flag = 4; 
+	}
+	while(SDL_PollEvent(&event)){
 
+		if((event.type == SDL_KEYDOWN) && (event.key.keysym.sym == SDLK_ESCAPE)){
+			flag = 0;
+		}
+		if(event.type == SDL_MOUSEMOTION){
+		  m.x = event.motion.x;
+		  m.y = event.motion.y;
+		}
+		
+		if(((event.button.x >= rbtn_comecar.x) && (event.button.x <= rbtn_comecar.x + rbtn_comecar.w)) && ((event.button.y >= rbtn_comecar.y) && (event.button.y <= rbtn_comecar.y + rbtn_comecar.h))){
+		    if((event.type == SDL_MOUSEBUTTONDOWN))	
+			 flag = 3;
+		}
+		if(((event.button.x >= rbtn_sair.x) && (event.button.x <= rbtn_sair.x + rbtn_sair.w)) && ((event.button.y >= rbtn_sair.y) && (event.button.y <= rbtn_sair.y + rbtn_sair.h))){
+		    if((event.type == SDL_MOUSEBUTTONDOWN))	
+			 flag = 5;
+		}
+	}
+
+	return flag;
+}
 int call_events(Fila *cobra,SDL_Rect *telaJogo){
-	int flag = 0;
+	int flag = 1;
 	
 	SDL_Event event;
 	const Uint8 *state = SDL_GetKeyboardState(NULL);
@@ -177,7 +297,7 @@ int call_events(Fila *cobra,SDL_Rect *telaJogo){
 	while(SDL_PollEvent(&event)){
 
 		if((event.type == SDL_KEYDOWN) && (event.key.keysym.sym == SDLK_ESCAPE)){
-			flag = 1;
+			flag = 0;
 		}
 	}
     SDL_Rect *rect = &cobra->inicio->reg.rect;
