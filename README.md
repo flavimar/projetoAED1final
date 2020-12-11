@@ -22,3 +22,4 @@
 <li>incremento da pontuação do jogo quando houver colisão da cobra com o alimento</li>
 </ul>
 Link para o video:
+https://youtu.be/7yKIjNglHlY
